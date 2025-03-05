@@ -1,0 +1,14 @@
+version: '3.8'
+
+services:
+  ui:
+    build:
+      context: ./ui
+      dockerfile: Dockerfile
+    image: research-canvas/ui:latest
+
+  agent:
+    build:
+      context: ./agent
+      dockerfile: Dockerfile
+    image: research-canvas/agent:latest

@@ -2,10 +2,19 @@
 
 import os
 from dotenv import load_dotenv
+
+# Load environment variables at the very beginning
 load_dotenv()
+
+# Verify API keys are present
+if not os.getenv("OPENAI_API_KEY"):
+    raise ValueError("OPENAI_API_KEY environment variable is not set")
+if not os.getenv("TAVILY_API_KEY"):
+    raise ValueError("TAVILY_API_KEY environment variable is not set")
 
 # pylint: disable=wrong-import-position
 from fastapi import FastAPI
+from fastapi.middleware.cors import CORSMiddleware
 import uvicorn
 from copilotkit.integrations.fastapi import add_fastapi_endpoint
 from copilotkit import CopilotKitRemoteEndpoint, LangGraphAgent
@@ -13,41 +22,17 @@ from research_canvas.crewai.crewai_agent import CrewAIAgent
 from research_canvas.crewai.agent import ResearchCanvasFlow
 from research_canvas.langgraph.agent import graph
 
-# from contextlib import asynccontextmanager
-# from langgraph.checkpoint.sqlite.aio import AsyncSqliteSaver
-# @asynccontextmanager
-# async def lifespan(fastapi_app: FastAPI):
-#     """Lifespan for the FastAPI app."""
-#     async with AsyncSqliteSaver.from_conn_string(
-#         ":memory:"
-#     ) as checkpointer:
-#         # Create an async graph
-#         graph = workflow.compile(checkpointer=checkpointer)
-
-#         # Create SDK with the graph
-#         sdk = CopilotKitRemoteEndpoint(
-#             agents=[
-#                 LangGraphAgent(
-#                     name="research_agent",
-#                     description="Research agent.",
-#                     graph=graph,
-#                 ),
-#                 LangGraphAgent(
-#                     name="research_agent_google_genai",
-#                     description="Research agent.",
-#                     graph=graph
-#                 ),
-#             ],
-#         )
-
-#         # Add the CopilotKit FastAPI endpoint
-#         add_fastapi_endpoint(fastapi_app, sdk, "/copilotkit")
-#         yield
-
-# app = FastAPI(lifespan=lifespan)
-
-
 app = FastAPI()
+
+# Add CORS middleware
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],  # Allows all origins
+    allow_credentials=True,
+    allow_methods=["*"],  # Allows all methods
+    allow_headers=["*"],  # Allows all headers
+)
+
 sdk = CopilotKitRemoteEndpoint(
     agents=[
         CrewAIAgent(
@@ -60,7 +45,7 @@ sdk = CopilotKitRemoteEndpoint(
             description="Research agent.",
             graph=graph,
         ),
-         LangGraphAgent(
+        LangGraphAgent(
             name="research_agent_google_genai",
             description="Research agent.",
             graph=graph
@@ -68,14 +53,18 @@ sdk = CopilotKitRemoteEndpoint(
     ],
 )
 
+# Add the CopilotKit endpoint
 add_fastapi_endpoint(app, sdk, "/copilotkit")
-
 
 @app.get("/health")
 def health():
     """Health check."""
     return {"status": "ok"}
 
+@app.get("/")
+def root():
+    """Root endpoint."""
+    return {"message": "Research Canvas API is running"}
 
 def main():
     """Run the uvicorn server."""
@@ -84,12 +73,5 @@ def main():
         "research_canvas.demo:app",
         host="0.0.0.0",
         port=port,
-        reload=True,
-        reload_dirs=(
-            ["."] +
-            (["../../../sdk-python/copilotkit"]
-             if os.path.exists("../../../sdk-python/copilotkit")
-             else []
-             )
-        )
+        reload=False  # Disable reload in production
     )
